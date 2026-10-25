@@ -1,0 +1,14 @@
+src/parser.tab.c
+src/parser.tab.h
+src/lex.yy.c
+compilador.exe
+*.o
+*.obj
+*.exe
+*.stackdump
+*.tmp
+*~
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

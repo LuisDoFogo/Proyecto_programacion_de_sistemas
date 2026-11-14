@@ -12,3 +12,46 @@ compilador.exe
 Thumbs.db
 .vscode/
 .idea/
+
+# Cache de Python
+__pycache__/
+*.py[cod]
+
+# Temporales, respaldos y archivos de edicion
+*.tmp.*
+*.bak
+*.backup
+*.orig
+*.swp
+*.swo
+/backups/
+/respaldos/
+
+# Configuracion y credenciales locales
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+/credentials.json
+/secrets.json
+/.aws/
+/.ssh/
+
+# Materiales externos del profesor: conservados localmente, no distribuibles
+/04 05 PS Construcción de un compilador (1).pdf
+/ejemplos/01 Calculadora/calc.l
+/ejemplos/01 Calculadora/calc.y
+/ejemplos/02 Calculadora con Variables/calc.l
+/ejemplos/02 Calculadora con Variables/calc.y
+/ejemplos/03 Generador de codigo/lexer.l
+/ejemplos/03 Generador de codigo/parser.y
+/ejemplos/04 Generador de codigo 2/generador.l
+/ejemplos/04 Generador de codigo 2/parser.y
+/ejemplos/04 Generador de codigo 2/programaprueba.txt
+/ejemplos/05 Generador de codigo 3/generador.l
+/ejemplos/05 Generador de codigo 3/parser.y
+/ejemplos/05 Generador de codigo 3/programa.txt
+/ejemplos/compilar.txt

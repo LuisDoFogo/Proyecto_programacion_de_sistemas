@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# Demostración del proyecto. Ejecutar desde MSYS2 UCRT64:
+# bash COMANDOS_DEMOSTRACION.txt
+# Desde otra carpeta, indicar la ruta del archivo entre comillas.
+# El primer cd lleva a la carpeta de este archivo; no depende del usuario de Windows.
+# Si se copian comandos por separado a la terminal, hacer primero cd a la raíz
+# del proyecto (BASH_SOURCE corresponde al archivo cuando se ejecuta con bash).
+
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+printf 'Proyecto: %s\n' "$PWD"
+test "${MSYSTEM:-}" = UCRT64
+
+# 1. Mostrar qué herramientas se van a utilizar y sus versiones.
+command -v bash bison flex gcc python
+bash --version
+bison --version
+flex --version
+gcc --version
+gcc -dumpmachine
+python --version
+
+# 2. Generar parser, lexer y ejecutable. Cualquier fallo detiene esta guía.
+bash compilar.sh
+
+# 3. Con un argumento se comprueban léxico y sintaxis, sin generar Python.
+./compilador.exe ejemplos/ejemplo1.c
+./compilador.exe ejemplos/ejemplo2.c
+./compilador.exe ejemplos/ejemplo3.c
+
+# 4. Mostrar los tres originales; no se editan.
+for n in 1 2 3; do
+    printf '\nOriginal C: ejemplo%s\n' "$n"
+    cat "ejemplos/ejemplo$n.c"
+done
+
+# 5. Generar automáticamente las traducciones.
+# Se reemplazan mediante el transpilador, nunca escribiendo su contenido a mano.
+mkdir -p salida_python
+./compilador.exe ejemplos/ejemplo1.c salida_python/ejemplo1.py
+./compilador.exe ejemplos/ejemplo2.c salida_python/ejemplo2.py
+./compilador.exe ejemplos/ejemplo3.c salida_python/ejemplo3.py
+
+# 6. Mostrar los archivos producidos por las acciones semánticas.
+for n in 1 2 3; do
+    printf '\nPython generado: ejemplo%s\n' "$n"
+    cat "salida_python/ejemplo$n.py"
+done
+
+# 7. Ejecutar los tres programas y mostrar su código de terminación.
+python -B salida_python/ejemplo1.py
+printf 'ejemplo1.py: código %s\n' "$?"
+python -B salida_python/ejemplo2.py
+printf 'ejemplo2.py: código %s\n' "$?"
+python -B salida_python/ejemplo3.py
+printf 'ejemplo3.py: código %s\n' "$?"
+
+# 8. Comprobar la sintaxis sin generar __pycache__.
+python -B - <<'PY'
+import ast
+from pathlib import Path
+for n in (1, 2, 3):
+    ruta = Path("salida_python") / f"ejemplo{n}.py"
+    ast.parse(ruta.read_text(encoding="utf-8"), filename=str(ruta))
+    print(f"Sintaxis Python válida: {ruta}")
+PY
+
+# 9. Guardar pruebas auxiliares y ejecutables C fuera del proyecto.
+temporal=$(mktemp -d)
+printf '\nDirectorio temporal de demostración: %s\n' "$temporal"
+
+# Esta función admite únicamente el código 1 esperado de una entrada inválida.
+# Así los errores de demostración no interrumpen la guía ni se ocultan fallos.
+comprobar_error() {
+    local codigo
+    if "$@"; then
+        printf 'FALLO: se esperaba rechazo.\n' >&2
+        return 1
+    else
+        codigo=$?
+    fi
+    test "$codigo" -eq 1
+    printf 'Rechazo comprobado: código %s\n' "$codigo"
+}
+
+# Error léxico: cadena sin cierre. Error sintáctico: falta punto y coma.
+comprobar_error ./compilador.exe pruebas/invalido_cadena_sin_cerrar.c
+comprobar_error ./compilador.exe pruebas/invalido_sin_punto_y_coma.c
+
+# Error semántico: solo se valida al pedir traducción.
+cat > "$temporal/error_semantico.c" <<'C'
+#include <stdio.h>
+int main() {
+    int dato;
+    printf("%d\n", dato);
+    return 0;
+}
+C
+comprobar_error ./compilador.exe "$temporal/error_semantico.c" "$temporal/error_semantico.py"
+test ! -e "$temporal/error_semantico.py"
+
+# 10. Repetir las dos baterías existentes: 33 + 68 = 101 comprobaciones.
+python -B pruebas/probar_etapa3.py
+python -B pruebas/probar_etapa4.py
+
+# 11. Compilar los originales y comparar salida, stderr y terminación.
+# Los ejecutables y las capturas quedan en el directorio temporal.
+for n in 1 2 3; do
+    gcc -Wall -Wextra "ejemplos/ejemplo$n.c" -o "$temporal/ejemplo$n.exe"
+    if "$temporal/ejemplo$n.exe" > "$temporal/c$n.out" 2> "$temporal/c$n.err"; then
+        codigo_c=0
+    else
+        codigo_c=$?
+    fi
+    if python -B "salida_python/ejemplo$n.py" > "$temporal/py$n.out" 2> "$temporal/py$n.err"; then
+        codigo_python=0
+    else
+        codigo_python=$?
+    fi
+    python -B - "$temporal" "$n" <<'PY'
+import sys
+from pathlib import Path
+carpeta, n = Path(sys.argv[1]), sys.argv[2]
+for extension in ("out", "err"):
+    c = (carpeta / f"c{n}.{extension}").read_bytes()
+    py = (carpeta / f"py{n}.{extension}").read_bytes()
+    if c != py:
+        raise SystemExit(f"Diferencia en ejemplo{n}: {extension}")
+PY
+    test "$codigo_c" -eq "$codigo_python"
+    test "$codigo_c" -eq 0
+    printf 'ejemplo%s: stdout y stderr idénticos byte a byte; C=%s, Python=%s\n' "$n" "$codigo_c" "$codigo_python"
+done
+
+# Se conserva este pequeño directorio temporal como evidencia de la demostración.
+printf '\nDemostración terminada. Evidencia temporal: %s\n' "$temporal"
